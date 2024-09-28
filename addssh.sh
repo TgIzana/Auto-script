@@ -1,91 +1,100 @@
 #!/bin/bash
-#  |════════════════════════════════════════════════════════════════════════════════════|
-#  • Autoscript AIO Lite Menu By Izana                                     |
-#  • IZANA AUTO-SCRIPT          |
-#  |════════════════════════════════════════════════════════════════════════════════════|
-#
-izp=$(cat /root/.isp)
-region=$(cat /root/.region)
-city=$(cat /root/.city)
-dmas=$(cat /etc/xray/domain)
+
+# Read POST data
+read POST_DATA
+
+# Parse POST data using jq
+username=$(echo $POST_DATA | jq -r '.username')
+password=$(echo $POST_DATA | jq -r '.password')
+iplimit=$(echo $POST_DATA | jq -r '.limit-ip')
+expired=$(echo $POST_DATA | jq -r '.expired')
+
+# Get domain
 domain=$(cat /etc/xray/domain)
 if [ -f /etc/xray/domssh ]; then
     domargo=$(cat /etc/xray/domssh)
     domain=$domssh
 fi
-clear
-echo -e "\e[33m═══════════════════════════════════\033[0m"
-echo -e "\E[40;1;37m            SSH Account            \E[0m"
-echo -e "\e[33m═══════════════════════════════════\033[0m"
-read -p "Username       : " Login
-read -p "Password       : " Pass
-read -p "Limit IP       : " iplimit
-read -p "Expired (Days) : " masaaktif
-clear
+
 #limitip
 if [[ $iplimit -gt 2 ]]; then
-echo -e "$iplimit" > /etc/xray/limit/ip/ssh/$Login
+echo -e "$iplimit" > /etc/funny/limit/ssh/ip/$username
 else
 echo > /dev/null
 fi
-useradd -e `date -d "$masaaktif days" +"%Y-%m-%d"` -s /bin/false -M $Login
-expi="$(chage -l $Login | grep "Account expires" | awk -F": " '{print $2}')"
-echo -e "$Pass\n$Pass\n"|passwd $Login &> /dev/null
-echo "$Login:$Pass" | sudo chpasswd
+
+# Create the user and set expiration
+useradd -e $(date -d "$expired days" +"%Y-%m-%d") -s /bin/false -M $username
+exp="$(chage -l $username | grep "Account expires" | awk -F": " '{print $2}')"
+
+# Set the user password
+echo -e "$password\n$password\n" | passwd $username &> /dev/null
+echo "$username:$password" | sudo chpasswd
+tcpx="http://$domain:8081/tcp.ovpn"
+udpx="http://$domain:8081/udp.ovpn"
+wsx="GET / HTTP/1.1[crlf]Host: $domain[crlf]Upgrade: websocket[crlf][crlf]"
+ovpnx="GET /ovpn HTTP/1.1[crlf]Host: $domain[crlf]Upgrade: websocket[crlf][crlf]"
+ctls="chisel client wss://$domain:9443 R:5000:localhost:22 / chisel client https://$username:$password@$domain:9443 R:5000:localhost:22"
+cth="chisel client ws://$domain:8000 R:5000:localhost:22 / chisel client http://$username:$password@$domain:8000 R:5000:localhost:22"
 clear
-TEKS="
-═══════════════════════════
-<=      SSH ACCOUNT      =>
-═══════════════════════════
+# Generate the output JSON
+OUTPUT=$(jq -n \
+  --arg username "$username" \
+  --arg password "$password" \
+  --arg host_ip "$domain" \
+  --arg nsdomain "$(cat /etc/slowdns/nsdomain)" \
+  --arg pubkey "$(cat /etc/slowdns/server.pub)" \
+  --arg expi "$exp" \
+  --arg tcp "$tcpx" \
+  --arg udp "$udpx" \
+  --arg ws "$wsx" \
+  --arg ovpn "$ovpnx" \
+  --arg tlsc "$ctls" \
+  --arg tlsh "$cth" \
+  "{
+    username: \$username,
+    password: \$password,
+    host_ip: \$host_ip,
+    limit_ip: \$iplimit,
+    tls_ports: \"443\",
+    non_tls_ports: \"80, 2082, 2080\",
+    stunnel_ports: \"443\",
+    ws_ovpn_port: \"443, 80\",
+    openssh_ports: \"22, 3303, 53\",
+    dropbear_ports: \"109, 69, 143\",
+    udp_custom_ports: \"1-65535, 56-7789\",
+    http_proxy: \"8888\",
+    ohp_server: \"8181, 8282, 8383\",
+    badvpn_port: \"7300\",
+    slowdns_info: {
+      port: \"5300\",
+      public_key: \$pubkey,
+      nameserver: \$nsdomain
+    },
+    chusel_info: {
+      port_tls: \"9443\",
+      port_http: \"8000\",
+      chisel_tls: \$tlsc,
+      chisel_http: \$tlsh
+    },
+    ovpn_info: {
+      tcp: \$tcp,
+      udp: \$udp
+    },
+    payloads: {
+      ws: \$ws,
+      ovpn: \$ovpn
+    },
+    expired: \$expi
+  }")
 
-Username     : $Login
-Password     : $Pass
-Host/IP      : $domain
-Limit IP     : $iplimit
-Port ssl/tls : 443
-Port non tls : 80, 2082
-Port openssh : 22, 3303, 53
-Port dropbear: 109, 69, 143
-Udp Custom   : 1-65535, 56-7789
-Http Proxy   : 8888
-OHP All      : 8181, 8282, 8383
-BadVpn       : 7300
-════════════════════════════
-<=   Detail Information   =>
-
-ISP           : $izp
-CITY          : $city
-REGION        : $region
-════════════════════════════
-<=   DNSTT  Information   =>
-
-Port         : 5300
-Publik Key   : $(cat /etc/slowdns/server.pub)
-Nameserver   : $(cat /etc/slowdns/nsdomain)
-═══════════════════════════
-<=  Chisel  Information  =>
-
-Port TLS     : 9443
-Port HTTP    : 8000
-TLS Usage    : chisel client wss://$domain:9443 R:5000:localhost:22 / chisel client https://$Login:$Pass@$domain:9443 R:5000:localhost:22
-HTTP Usage   : chisel client ws://$domain:8000 R:5000:localhost:22 / chisel client http://$Login:$Pass@$domain:8000 R:5000:localhost:22
-═══════════════════════════
-Port OVPN    : 1194 TCP / 2200 UDP
-OVPN TCP     : http://$domain:8081/tcp.ovpn
-OVPN UDP     : http://$domain:8081/udp.ovpn
-═══════════════════════════
-Payload Ws   => GET / HTTP/1.1[crlf]Host: $domain[crlf]Upgrade: websocket[crlf][crlf]
-═══════════════════════════
-Payload Ovpn => GET /ovpn HTTP/1.1[crlf]Host: $domain[crlf]Upgrade: websocket[crlf][crlf]
-═══════════════════════════
-Expired => $expi
-═══════════════════════════
-"
-clear
+# Send notification to Telegram (optional)
 CHATID=$(cat /etc/funny/.chatid)
 KEY=$(cat /etc/funny/.keybot)
 TIME="10"
 URL="https://api.telegram.org/bot$KEY/sendMessage"
-curl -s --max-time $TIME --data-urlencode "chat_id=$CHATID" --data-urlencode "text=$TEKS" $URL
+curl -s --max-time $TIME --data-urlencode "chat_id=$CHATID" --data-urlencode "text=$OUTPUT" $URL >/dev/null 2>&1
+
+# Print the output JSON
 clear
-echo -e "$TEKS"
+echo "$OUTPUT" | jq .

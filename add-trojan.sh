@@ -1,90 +1,97 @@
 #!/bin/bash
 #
-#  |═════════════════════════════════════════════════════════════════════════════════════======|
-#  • Autoscript AIO Lite Menu By Izana                                   |
+#  |════════════════════════════════════════════════════════════════════════════════════=======|
+#  • Autoscript AIO Lite Menu By Izana                                        |
 #  • IZANA AUTO-SCRIPT
-#  |═════════════════════════════════════════════════════════════════════════════════════======|
+#  |════════════════════════════════════════════════════════════════════════════════════=======|
 #
-izp=$(cat /root/.isp)
-region=$(cat /root/.region)
-city=$(cat /root/.city)
+
+# Read POST data
+read POST_DATA
+
+# Parse POST data using jq
+user=$(echo $POST_DATA | jq -r '.username')
+expired=$(echo $POST_DATA | jq -r '.expired')
+
+# Get domain
 domain=$(cat /etc/xray/domain)
 if [ -f /etc/xray/domargo ]; then
     domargo=$(cat /etc/xray/domargo)
     domain=$domargo
 fi
-clear
-until [[ $user =~ ^[a-za-z0-9_]+$ && ${client_exists} == '0' ]]; do
-echo -e "
-════════════════════════════
-<=   Create Xray Trojan   =>
-════════════════════════════
-"
-read -p "Username: " user
+
+# Check if user already exists
 client_exists=$(grep -w $user /etc/xray/config.json | wc -l)
 if [[ ${client_exists} == '1' ]]; then
-clear
-echo -e "
-Already Exist Name
-"
+  echo -e "{\"error\": \"A client with the specified name was already created, please choose another name.\"}"
+  exit 1
 fi
-done
-read -p "Active Time: " masaaktif
-read -p "Limit Quota: " quota
-if [[ $quota -gt 0 ]]; then
-echo -e "$[$quota * 1024 * 1024 * 1024]" > /etc/xray/quota/$user
-else
-echo > /dev/null
-fi
-exp=`date -d "$masaaktif days" +"%y-%m-%d"`
+
+# Set expiration date
+exp=$(date -d "$expired days" +"%y-%m-%d")
+
+# Set UUID
 uuid=${user}
+
+# Add user to config
 sed -i '/#trojan$/a\### '"$user $exp"'\
 },{"password": "'""$uuid""'","email": "'""$user""'"' /etc/xray/config.json
-link1="trojan://${uuid}@${domain}:443?mode=gun&security=tls&authority=${domain}&type=grpc&serviceName=trojan-grpc&sni=${domain}#user"
+
+# Create Trojan links
+link1="trojan://${uuid}@${domain}:443?mode=gun&security=tls&authority=${domain}&type=grpc&serviceName=trojan-grpc&sni=${domain}#${user}"
 link2="trojan://${uuid}@${domain}:443?path=%2ftrojanws&security=tls&host=${domain}&type=ws&sni=${domain}#${user}"
 link3="trojan://${uuid}@${domain}:443?path=/dinda&security=tls&host=${domain}&type=httpupgrade&sni=${domain}#${user}"
 link4="trojan://${uuid}@${domain}:443?path=/trojan-split&security=tls&host=${domain}&type=splithttp&sni=${domain}#${user}"
 link5="trojan://${uuid}@${domain}:80?path=trojan-split&security=none&host=${domain}&type=splithttp#${user}"
-systemctl daemon-reload ; systemctl restart xray
+
+# Restart Xray service
+systemctl restart xray
 systemctl restart quota
-clear
-TEKS="
-════════════════════════════
-<=  X-Ray Trojan Account  =>
-════════════════════════════
 
-Remarks    : $user
-Hostname   : $domain
-WildCard   : bug.com.${domain}
-Expired    : $exp
-Password   : $uuid
-════════════════════════════
-WS HTTPS   : 443
-WS HTTP    : 80
-Path WS    : /trojan | /trojanws
-ServiceName: trojan-grpc
-════════════════════════════
-<=   Detail Information   =>
+#       http: "/dinda | /dindaputri",
+#      split: "/trojan-split"
+#      http_tls: $link3,
+#      split_tls: $link4,
+#      split_http: $link5,
+#  --arg link3 "$link3" \
+#  --arg link4 "$link4" \
+#  --arg link5 "$link5" \
 
-ISP           : $izp
-CITY          : $city
-REGION        : $region
-════════════════════════════
-<=   DNSTT  Information   =>
+# Generate output JSON
+OUTPUT=$(jq -n \
+  --arg user "$user" \
+  --arg domain "$domain" \
+  --arg uuid "$uuid" \
+  --arg exp "$exp" \
+  --arg link1 "$link1" \
+  --arg link2 "$link2" \
+  '{
+    remarks: $user,
+    hostname: $domain,
+    wildcard: ("bug.com." + $domain),
+    expired: $exp,
+    password: $uuid,
+    ports: {
+      ws_https: "443",
+      ws_http: "80"
+    },
+    paths: {
+      ws: "/trojan | /trojanws"
+    },
+    serviceName: "trojan-grpc",
+    links: {
+      websocket: $link2,
+      grpc: $link1
+    }
+  }')
 
-Port         : 5300
-Publik Key   : $(cat /etc/slowdns/server.pub)
-Nameserver   : $(cat /etc/slowdns/nsdomain)
-════════════════════════════
-WebSocket  : $link2
-════════════════════════════
-gRPC       : $link1
-════════════════════════════
-"
+# Send notification to Telegram
 CHATID=$(cat /etc/funny/.chatid)
 KEY=$(cat /etc/funny/.keybot)
 TIME="10"
 URL="https://api.telegram.org/bot$KEY/sendMessage"
-curl -s --max-time $TIME --data-urlencode "chat_id=$CHATID" --data-urlencode "text=$TEKS" $URL
+curl -s --max-time $TIME --data-urlencode "chat_id=$CHATID" --data-urlencode "text=$OUTPUT" $URL >/dev/null 2>&1
+
+# Print the output JSON
 clear
-echo "$TEKS"
+echo "$OUTPUT" | jq .

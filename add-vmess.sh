@@ -2,138 +2,141 @@
 clear
 #
 #  |════════════════════════════════════════════════════════════════════════════════════════════════════════════════|
-#  • Autoscript AIO Lite Menu By Izana                                       |
+#  • Autoscript AIO Lite Menu By Izana                                          |
 #  • IZANA AUTO-SCRIPT
 #  |════════════════════════════════════════════════════════════════════════════════════════════════════════════════|
 #
-izp=$(cat /root/.isp)
-region=$(cat /root/.region)
-city=$(cat /root/.city)
+
+# Read POST data
+read POST_DATA
+
+# Parse POST data using jq
+user=$(echo $POST_DATA | jq -r '.username')
+expired=$(echo $POST_DATA | jq -r '.expired')
+
+# Get domain
 domain=$(cat /etc/xray/domain)
 if [ -f /etc/xray/domargo ]; then
     domargo=$(cat /etc/xray/domargo)
     domain=$domargo
 fi
-clear
-until [[ $user =~ ^[a-za-z0-9_]+$ && ${client_exists} == '0' ]]; do
-echo -e "
-════════════════════════════
-<=   Create X-Ray Vmess   =>
-════════════════════════════
-"
-read -p "Username: " user
+
+# Check if user already exists
 client_exists=$(grep -w $user /etc/xray/config.json | wc -l)
 if [[ ${client_exists} == '1' ]]; then
-clear
-echo -e "
-Already Exist Name
-"
+  echo -e "{\"error\": \"A client with the specified name was already created, please choose another name.\"}"
+  exit 1
 fi
-done
-read -p "Active Time: " masaaktif
-read -p "Limit Quota: " quota
-if [[ $quota -gt 0 ]]; then
-echo -e "$[$quota * 1024 * 1024 * 1024]" > /etc/xray/quota/$user
-else
-echo > /dev/null
-fi
-exp=`date -d "$masaaktif days" +"%y-%m-%d"`
+
+# Set expiration date
+exp=$(date -d "$expired days" +"%y-%m-%d")
+
+# Generate UUID
 uuid=$(xray uuid)
+
+# Add user to config
 sed -i '/#vmess$/a\### '"$user $exp"'\
 },{"id": "'""$uuid""'","alterid": '"0"',"email": "'""$user""'"' /etc/xray/config.json
-systemctl daemon-reload ; systemctl restart xray
-systemctl restart quota
-acs=`cat<<eof
+
+# Create VMess links
+acs=$(cat <<EOF
 {
-"v": "2",
-"ps": "${user}",
-"add": "${domain}",
-"port": "443",
-"id": "${uuid}",
-"aid": "0",
-"net": "ws",
-"path": "/vmessws",
-"type": "none",
-"host": "${domain}",
-"tls": "tls"
+  "v": "2",
+  "ps": "${user}",
+  "add": "${domain}",
+  "port": "443",
+  "id": "${uuid}",
+  "aid": "0",
+  "net": "ws",
+  "path": "/vmessws",
+  "type": "none",
+  "host": "${domain}",
+  "tls": "tls"
 }
-eof`
-ask=`cat<<eof
+EOF
+)
+ask=$(cat <<EOF
 {
-"v": "2",
-"ps": "${user}",
-"add": "${domain}",
-"port": "80",
-"id": "${uuid}",
-"aid": "0",
-"net": "ws",
-"path": "/worryfree",
-"type": "none",
-"host": "${domain}",
-"tls": "none"
+  "v": "2",
+  "ps": "${user}",
+  "add": "${domain}",
+  "port": "80",
+  "id": "${uuid}",
+  "aid": "0",
+  "net": "ws",
+  "path": "/worryfree",
+  "type": "none",
+  "host": "${domain}",
+  "tls": "none"
 }
-eof`
-grpc=`cat<<eof
+EOF
+)
+grpc=$(cat <<EOF
 {
-"v": "2",
-"ps": "${user}",
-"add": "${domain}",
-"port": "443",
-"id": "${uuid}",
-"aid": "0",
-"net": "grpc",
-"path": "vmess-grpc",
-"type": "none",
-"host": "${domain}",
-"tls": "tls"
+  "v": "2",
+  "ps": "${user}",
+  "add": "${domain}",
+  "port": "443",
+  "id": "${uuid}",
+  "aid": "0",
+  "net": "grpc",
+  "path": "vmess-grpc",
+  "type": "none",
+  "host": "${domain}",
+  "tls": "tls"
 }
-eof`
-hts=`cat<<eof
+EOF
+)
+hts=$(cat <<EOF
 {
-"v": "2",
-"ps": "${user}",
-"add": "${domain}",
-"port": "80",
-"id": "${uuid}",
-"aid": "0",
-"net": "httpupgrade",
-"path": "/love-dinda",
-"type": "httpupgrade",
-"host": "${domain}",
-"tls": "none"
+  "v": "2",
+  "ps": "${user}",
+  "add": "${domain}",
+  "port": "80",
+  "id": "${uuid}",
+  "aid": "0",
+  "net": "httpupgrade",
+  "path": "/love-dinda",
+  "type": "httpupgrade",
+  "host": "${domain}",
+  "tls": "none"
 }
-eof`
-cs=`cat<<eof
+EOF
+)
+cs=$(cat <<EOF
 {
-"v": "2",
-"ps": "${user}",
-"add": "${domain}",
-"port": "443",
-"id": "${uuid}",
-"aid": "0",
-"net": "httpupgrade",
-"path": "/love-dinda",
-"type": "httpupgrade",
-"host": "${domain}",
-"tls": "tls"
+  "v": "2",
+  "ps": "${user}",
+  "add": "${domain}",
+  "port": "443",
+  "id": "${uuid}",
+  "aid": "0",
+  "net": "httpupgrade",
+  "path": "/love-dinda",
+  "type": "httpupgrade",
+  "host": "${domain}",
+  "tls": "tls"
 }
-eof`
-bpjs=`cat<<eof
+EOF
+)
+bpjs=$(cat <<EOF
 {
-"v": "2",
-"ps": "${user}",
-"add": "${domain}",
-"port": "8880",
-"id": "${uuid}",
-"aid": "0",
-"net": "ws",
-"path": "/whatever",
-"type": "none",
-"host": "${domain}",
-"tls": "none"
+  "v": "2",
+  "ps": "${user}",
+  "add": "${domain}",
+  "port": "8880",
+  "id": "${uuid}",
+  "aid": "0",
+  "net": "ws",
+  "path": "/whatever",
+  "type": "none",
+  "host": "${domain}",
+  "tls": "none"
 }
-eof`
-split1=`cat<<eof
+EOF
+)
+
+split1=$(cat<<eof
 {
 "v": "2",
 "ps": "${user}",
@@ -147,8 +150,9 @@ split1=`cat<<eof
 "host": "${domain}",
 "tls": "tls"
 }
-eof`
-split2=`cat<<eof
+eof
+)
+split2=$(cat<<eof
 {
 "v": "2",
 "ps": "${user}",
@@ -162,10 +166,10 @@ split2=`cat<<eof
 "host": "${domain}",
 "tls": "none"
 }
-eof`
-vmess_base641=$( base64 -w 0 <<< $vmess_json1)
-vmess_base642=$( base64 -w 0 <<< $vmess_json2)
-vmess_base643=$( base64 -w 0 <<< $vmess_json3)
+eof
+)
+
+# Base64 encode VMess links
 vmesslink1="vmess://$(echo $acs | base64 -w 0)"
 vmesslink2="vmess://$(echo $ask | base64 -w 0)"
 vmesslink3="vmess://$(echo $grpc | base64 -w 0)"
@@ -174,57 +178,65 @@ vmesslink5="vmess://$(echo $cs | base64 -w 0)"
 vmesslink6="vmess://$(echo $bpjs | base64 -w 0)"
 vmesslink7="vmess://$(echo $split1 | base64 -w 0)"
 vmesslink8="vmess://$(echo $split2 | base64 -w 0)"
-clear
-TEKS="
-═════════════════════════════
-<=   X-Ray Vmess Account   =>
-═════════════════════════════
 
-Remarks    : $user
-Hostname   : $domain
-WildCard   : bug.com.${domain}
-UUID       : $uuid
-Expired    : $exp
-═════════════════════════════
-Port TLS   : 443
-Port HTTP  : 80
-AlterID    : 0
-Network    : ws, gRPC
-Alpn       : http/1.1
-Path WS    : /vmess | /vmessws
-ServiceName: vmess-grpc
-═════════════════════════════
-Multipath  : /custom | /whatever
-Port       : 8880
-Network    : WebSocket NonTLS
-AlID, Alpn : 0, http/1.1
-════════════════════════════
-<=   Detail Information   =>
+# Restart Xray service
+systemctl restart xray
+systemctl restart quota
 
-ISP           : $izp
-CITY          : $city
-REGION        : $region
-════════════════════════════
-<=   DNSTT  Information   =>
+#       http: "/love | /love-dinda",
+#      split: "/vmess-split"
+# HTTPUpgrade, SplitHTTP, 
+#      http_ntls: $vmesslink4,
+#      http_tls: $vmesslink5,
+#      split_tls: $vmesslink7,
+#      split_http: $vmesslink8,
+#  --arg vmesslink7 "$vmesslink7" \
+#  --arg vmesslink8 "$vmesslink8" \
+#  --arg vmesslink4 "$vmesslink4" \
+#  --arg vmesslink5 "$vmesslink5" \      
 
-Port         : 5300
-Publik Key   : $(cat /etc/slowdns/server.pub)
-Nameserver   : $(cat /etc/slowdns/nsdomain)
-═════════════════════════════
-TLS        : $vmesslink1
-═════════════════════════════
-NoneTLS    : $vmesslink2
-═════════════════════════════
-MultiPath  : $vmesslink6
-═════════════════════════════
-gRPC       : $vmesslink3
-═════════════════════════════
-"
+# Generate output JSON
+OUTPUT=$(jq -n \
+  --arg domain "$domain" \
+  --arg user "$user" \
+  --arg uuid "$uuid" \
+  --arg exp "$exp" \
+  --arg vmesslink1 "$vmesslink1" \
+  --arg vmesslink2 "$vmesslink2" \
+  --arg vmesslink3 "$vmesslink3" \
+  --arg vmesslink6 "$vmesslink6" \
+  '{
+    hostname: $domain,
+    wildcard: ("bug.com." + $domain),
+    remark: $user,
+    uuid: $uuid,
+    expired: $exp,
+    ports: {
+      tls: "443",
+      http: "80"
+    },
+    network: "Ws, gRPC",
+    paths: {
+      ws: "/vmess | /vmessws"
+    },
+    serviceName: "vmess-grpc",
+    multipath: "/custom | /whatever",
+    port_multipath: "8880",
+    links: {
+      ws_tls: $vmesslink1,
+      ws_http: $vmesslink2,
+      grpc: $vmesslink3,
+      multipath: $vmesslink6
+    }
+  }')
+
+# Send notification to Telegram
 CHATID=$(cat /etc/funny/.chatid)
 KEY=$(cat /etc/funny/.keybot)
 TIME="10"
 URL="https://api.telegram.org/bot$KEY/sendMessage"
-curl -s --max-time $TIME --data-urlencode "chat_id=$CHATID" --data-urlencode "text=$TEKS" $URL
-clear
-echo "$TEKS"
+curl -s --max-time $TIME --data-urlencode "chat_id=$CHATID" --data-urlencode "text=$OUTPUT" $URL >/dev/null 2>&1
 
+# Print the output JSON
+clear
+echo "$OUTPUT" | jq .
